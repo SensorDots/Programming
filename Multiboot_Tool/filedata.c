@@ -197,7 +197,7 @@ static int hexfile_getrecord(FILE *stream, struct ihex_record *record)
     }
 
     if (length < 12) {
-        fprintf(stderr, "record too short (%d)\n", length);
+        fprintf(stderr, "record too short (%d)\n", (int)length);
         free(hexline);
         return -1;
     }

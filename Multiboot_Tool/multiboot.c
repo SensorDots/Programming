@@ -41,8 +41,9 @@ struct prog_mode {
 static struct prog_mode prog_modes[] =
 {
     { "twiboot", &twi_ops },
-    { "mpmboot", &mpm_ops },
-    { "funkboot", &funk_ops },
+	{ "twiboot-arduino", &twi_arduino_ops },
+    //{ "mpmboot", &mpm_ops },
+    //{ "funkboot", &funk_ops },
 };
 
 struct mboot_action {
@@ -239,7 +240,7 @@ int main(int argc, char *argv[])
     }
 
     mboot->verify      = 1;
-    mboot->progress_cb = progress_mode1_cb;
+    mboot->progress_cb = progress_mode2_cb;
 
     optarg_register(main_optargs, ARRAY_SIZE(main_optargs), main_optarg_cb, (void *)mboot);
     int abort = optarg_parse(argc, argv);
