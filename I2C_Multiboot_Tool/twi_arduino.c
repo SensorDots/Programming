@@ -153,6 +153,7 @@ struct twi_arduino_privdata {
 	uint8_t     auto_address;
     int         fd;
     int         connected;
+	int         reboot;
 
     uint8_t     pagesize;
     uint16_t    flashsize;
@@ -162,6 +163,7 @@ struct twi_arduino_privdata {
 static struct option twi_arduino_optargs[] = {
     {"address",     1, 0, 'a'}, /* -a <addr>       */
     {"device",      1, 0, 'd'}, /* [ -d <device> ] */
+    {"reboot",      0, 0, 's'}, /* [ -s ] */
 };
 
 static int twi_arduino_switch_application(struct twi_arduino_privdata *twi, uint8_t application)
@@ -210,6 +212,7 @@ static int twi_arduino_read_version(struct twi_arduino_privdata *twi, char *vers
     int i;
     for (i = 0; i < length; i++)
         version[i] &= ~0x80;
+
 
     return 0;
 }
@@ -348,34 +351,41 @@ static int twi_arduino_open(struct multiboot *mboot)
     /* wait for watchdog and startup time */
     usleep(100000);
 	
+	/* reboot device */
+	if (twi->connected && twi->reboot) {
+		printf("rebooting device: 0x%02X\n", twi->auto_address);
+        twi_arduino_switch_application(twi, BOOTTYPE_APPLICATION);
+	} else {
 	
-	//Stop bootloader from going into application mode
-	twi_arduino_wait(twi);
-	
-    char version[16];
-    if (twi_arduino_read_version(twi, version, sizeof(version))) {
-        fprintf(stderr, "failed to get bootloader version: %s\n", strerror(errno));
-        twi_arduino_close(mboot);
-        return -1;
-    }
+		/* Stop bootloader from going into application mode */
+		twi_arduino_wait(twi);
+		
+		
+		char version[16];
+		if (twi_arduino_read_version(twi, version, sizeof(version))) {
+			fprintf(stderr, "failed to get bootloader version: %s\n", strerror(errno));
+			twi_arduino_close(mboot);
+			return -1;
+		}
 
-    uint8_t chipinfo[8];
-    if (twi_arduino_read_memory(twi, chipinfo, sizeof(chipinfo), MEMTYPE_CHIPINFO, 0x0000)) {
-        fprintf(stderr, "failed to get chipinfo: %s\n", strerror(errno));
-        twi_arduino_close(mboot);
-        return -1;
-    }
+		uint8_t chipinfo[8];
+		if (twi_arduino_read_memory(twi, chipinfo, sizeof(chipinfo), MEMTYPE_CHIPINFO, 0x0000)) {
+			fprintf(stderr, "failed to get chipinfo: %s\n", strerror(errno));
+			twi_arduino_close(mboot);
+			return -1;
+		}
 
-    const char *chipname = chipinfo_get_avr_name(chipinfo);
+		const char *chipname = chipinfo_get_avr_name(chipinfo);
 
-    twi->pagesize   = chipinfo[3];
-    twi->flashsize  = (chipinfo[4] << 8) + chipinfo[5];
-    twi->eepromsize = (chipinfo[6] << 8) + chipinfo[7];
+		twi->pagesize   = chipinfo[3];
+		twi->flashsize  = (chipinfo[4] << 8) + chipinfo[5];
+		twi->eepromsize = (chipinfo[6] << 8) + chipinfo[7];
 
-    printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->auto_address);
-    printf("version        : %-16s (sig: 0x%02x 0x%02x 0x%02x => %s)\n", version, chipinfo[0], chipinfo[1], chipinfo[2], chipname);
-    printf("flash size     : 0x%04x / %5d   (0x%02x bytes/page)\n", twi->flashsize, twi->flashsize, twi->pagesize);
-    printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);
+		printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->auto_address);
+		printf("version        : %-16s (sig: 0x%02x 0x%02x 0x%02x => %s)\n", version, chipinfo[0], chipinfo[1], chipinfo[2], chipname);
+		printf("flash size     : 0x%04x / %5d   (0x%02x bytes/page)\n", twi->flashsize, twi->flashsize, twi->pagesize);
+		printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);
+	}
 
     return 0;
 }
@@ -402,6 +412,7 @@ static int twi_arduino_read(struct multiboot *mboot, struct databuf *dbuf, int m
     dbuf->length = pos;
 
     mboot->progress_cb(progress_msg, pos, size);
+	
     return 0;
 }
 
@@ -465,6 +476,7 @@ static int twi_arduino_verify(struct multiboot *mboot, struct databuf *dbuf, int
     dbuf->length = pos;
 
     mboot->progress_cb(progress_msg, pos, dbuf->length);
+	
     return 0;
 }
 
@@ -484,6 +496,7 @@ static int twi_arduino_optarg_cb(int val, const char *arg, void *privdata)
             }
         }
         break;
+	
 
     case 'd': /* device */
         {
@@ -499,6 +512,12 @@ static int twi_arduino_optarg_cb(int val, const char *arg, void *privdata)
             }
         }
         break;
+		
+	case 's': /* reboot after verify */
+		{
+			twi->reboot = 1;
+		}
+		break;
 
     case 'h':
     case '?': /* error */
@@ -507,6 +526,7 @@ static int twi_arduino_optarg_cb(int val, const char *arg, void *privdata)
                 "  -d <device>                  - selects Arduino I2C->USB device  (default: /dev/ttyUSB0)\n"
                 "  -r <flash|eeprom>:<file>     - reads flash/eeprom to file   (.bin | .hex | -)\n"
                 "  -w <flash|eeprom>:<file>     - write flash/eeprom from file (.bin | .hex)\n"
+				"  -s                           - reboot into application mode\n"
                 "  -n                           - disable verify after write\n"
                 "  -p <0|1|2>                   - progress bar mode\n"
                 "\n"
@@ -539,6 +559,7 @@ static struct multiboot * twi_arduino_alloc(void)
     memset(twi, 0x00, sizeof(struct twi_arduino_privdata));
     twi->device  = NULL;
     twi->address = 0;
+	twi->reboot = 0;
 
     optarg_register(twi_arduino_optargs, ARRAY_SIZE(twi_arduino_optargs), twi_arduino_optarg_cb, (void *)twi);
 
