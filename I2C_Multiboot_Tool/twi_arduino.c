@@ -308,10 +308,7 @@ static int twi_arduino_open_device(struct twi_arduino_privdata *twi)
 static int twi_arduino_close(struct multiboot *mboot)
 {
     struct twi_arduino_privdata *twi = (struct twi_arduino_privdata *)mboot->privdata;
- 
- 
-    //TODO: change this to manual application restart
-	
+ 	
     //if (twi->connected)
     //    twi_arduino_switch_application(twi, BOOTTYPE_APPLICATION);
 
