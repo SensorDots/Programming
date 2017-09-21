@@ -47,6 +47,8 @@
 
 #define I2C_BOOTLOADER_ADDR 0x07
 
+#define READ_DELAY 10000
+#define WRITE_DELAY 20000
 /* SLA+R */
 #define CMD_WAIT		    0x00
 #define CMD_READ_VERSION	0x01
@@ -84,7 +86,7 @@ struct twi_privdata {
 static struct option twi_optargs[] = {
     {"address",     1, 0, 'a'}, /* -a <addr>       */
     {"device",      1, 0, 'd'}, /* [ -d <device> ] */
-	{"reboot",      0, 0, 's'}, /* [ -s ] */
+    {"reboot",      0, 0, 's'}, /* [ -s ] */
 };
 
 static int twi_switch_application(struct twi_privdata *twi, uint8_t application)
@@ -110,6 +112,10 @@ static int twi_read_version(struct twi_privdata *twi, char *version, int length)
         return -1;
 
     memset(version, 0, length);
+
+	//Wait for data
+	usleep(READ_DELAY);
+
     if (read(twi->fd, version, length) != length)
         return -1;
 
@@ -126,6 +132,8 @@ static int twi_read_memory(struct twi_privdata *twi, uint8_t *buffer, uint8_t si
     if (write(twi->fd, cmd, sizeof(cmd)) != sizeof(cmd))
         return -1;
 
+    //Wait for data
+	usleep(READ_DELAY);
     return (read(twi->fd, buffer, size) != size);
 }
 
@@ -159,6 +167,9 @@ static int twi_write_memory(struct twi_privdata *twi, uint8_t *buffer, uint8_t s
 
     int result = write(twi->fd, cmd, bufsize);
     free(cmd);
+
+	//Wait for write to occur
+	usleep(WRITE_DELAY);
 
     return (result != bufsize);
 }
@@ -206,8 +217,8 @@ static int twi_close(struct multiboot *mboot)
 {
     struct twi_privdata *twi = (struct twi_privdata *)mboot->privdata;
 
-    if (twi->connected)
-        twi_switch_application(twi, BOOTTYPE_APPLICATION);
+    //if (twi->connected)
+    //    twi_switch_application(twi, BOOTTYPE_APPLICATION);
 
     twi_close_device(twi);
     return 0;
@@ -243,7 +254,7 @@ static int twi_open(struct multiboot *mboot)
 	twi->address = I2C_BOOTLOADER_ADDR;
 	
     /* wait for watchdog and startup time */
-    usleep(100000);
+    usleep(200000);
 	
 	/* reboot device */
 	if (twi->connected && twi->reboot) {
@@ -314,10 +325,11 @@ static int twi_write(struct multiboot *mboot, struct databuf *dbuf, int memtype)
     char *progress_msg = (memtype == MEMTYPE_FLASH) ? "writing flash" : "writing eeprom";
 
     int pos = 0;
+    int len = 0;
     while (pos < dbuf->length) {
         mboot->progress_cb(progress_msg, pos, dbuf->length);
 
-        int len = (memtype == MEMTYPE_FLASH) ? twi->pagesize : WRITE_BLOCK_SIZE;
+        len = (memtype == MEMTYPE_FLASH) ? twi->pagesize : WRITE_BLOCK_SIZE;
 
         len = MIN(len, dbuf->length - pos);
         if (twi_write_memory(twi, dbuf->data + pos, len, memtype, pos)) {
@@ -329,6 +341,7 @@ static int twi_write(struct multiboot *mboot, struct databuf *dbuf, int memtype)
     }
 
     mboot->progress_cb(progress_msg, pos, dbuf->length);
+    usleep(1000000);
     return 0;
 }
 
@@ -372,6 +385,7 @@ static int twi_optarg_cb(int val, const char *arg, void *privdata)
         {
             char *endptr;
             twi->address = strtol(arg, &endptr, 16);
+            twi->auto_address = strtol(arg, &endptr, 16);
             if (*endptr != '\0' || twi->address < 0x01 || twi->address > 0x7F) {
                 fprintf(stderr, "invalid address: '%s'\n", arg);
                 return -1;
