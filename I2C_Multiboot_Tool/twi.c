@@ -42,7 +42,7 @@
 
 #define TWI_DEFAULT_DEVICE  "/dev/i2c-0"
 
-#define READ_BLOCK_SIZE		 64	/* bytes in one flash/eeprom read request */
+#define READ_BLOCK_SIZE		 32	/* bytes in one flash/eeprom read request */
 #define WRITE_BLOCK_SIZE	 16	/* bytes in one eeprom write request */
 
 #define I2C_BOOTLOADER_ADDR 0x07
@@ -152,8 +152,7 @@ static int twi_write_memory(struct twi_privdata *twi, uint8_t *buffer, uint8_t s
     }
 
     uint8_t *cmd = malloc(bufsize);
-    if (cmd == NULL)
-        return -1;
+    if (cmd == NULL) return -1;
 
     cmd[0] = CMD_WRITE_MEMORY;
     cmd[1] = memtype;
@@ -300,10 +299,11 @@ static int twi_open(struct multiboot *mboot)
 		const char *chipname = chipinfo_get_avr_name(chipinfo);
 
 		twi->pagesize   = chipinfo[3];
+		if (twi->pagesize == 0) twi->pagesize = 128;
 		twi->flashsize  = (chipinfo[4] << 8) + chipinfo[5];
 		twi->eepromsize = (chipinfo[6] << 8) + chipinfo[7];
 
-		printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->address);
+		printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->auto_address);
 		printf("version        : %-16s (sig: 0x%02x 0x%02x 0x%02x => %s)\n", version, chipinfo[0], chipinfo[1], chipinfo[2], chipname);
 		printf("flash size     : 0x%04x / %5d   (0x%02x bytes/page)\n", twi->flashsize, twi->flashsize, twi->pagesize);
 		//printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);

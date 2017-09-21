@@ -249,8 +249,7 @@ static int twi_arduino_write_memory(struct twi_arduino_privdata *twi, uint8_t *b
 	bufsize = bufsize + 5;
     
     uint8_t *cmd = malloc(bufsize);
-    if (cmd == NULL)
-        return -1;
+    if (cmd == NULL) return -1;
 	
 	cmd[0] = twi->address;
 	cmd[1] = I2C_WRITE;
