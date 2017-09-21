@@ -244,17 +244,35 @@ static int twi_open(struct multiboot *mboot)
     if (twi_open_device(twi) != 0)
         return -1;
 
+	/* If this fails, it might already be in bootloader mode */
     if (twi_switch_application(twi, BOOTTYPE_BOOTLOADER)) {
-        fprintf(stderr, "failed to switch to bootloader (invalid address?): %s\n", strerror(errno));
-        twi_close(mboot);
-        return -1;
+		/* Change to new bootloader address */
+		twi->address = I2C_BOOTLOADER_ADDR;
+		
+		if (ioctl(twi->fd, I2C_SLAVE, twi->address) < 0) {
+			fprintf(stderr, "failed to select slave address '%d': %s\n", twi->address, strerror(errno));
+			close(twi->fd);
+			return -1;
+		}
+		
+		if (twi_switch_application(twi, BOOTTYPE_BOOTLOADER)) {
+			fprintf(stderr, "failed to switch to bootloader (invalid address?): %s\n", strerror(errno));
+			twi_close(mboot);
+			return -1;
+		}
     }
 
-	/* Change to new bootloader address */
+	/* Change to bootloader address */
 	twi->address = I2C_BOOTLOADER_ADDR;
 	
+	if (ioctl(twi->fd, I2C_SLAVE, twi->address) < 0) {
+        fprintf(stderr, "failed to select slave address '%d': %s\n", twi->address, strerror(errno));
+        close(twi->fd);
+        return -1;
+    }
+	
     /* wait for watchdog and startup time */
-    usleep(200000);
+    usleep(100000);
 	
 	/* reboot device */
 	if (twi->connected && twi->reboot) {
@@ -341,7 +359,6 @@ static int twi_write(struct multiboot *mboot, struct databuf *dbuf, int memtype)
     }
 
     mboot->progress_cb(progress_msg, pos, dbuf->length);
-    usleep(1000000);
     return 0;
 }
 
