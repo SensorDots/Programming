@@ -381,7 +381,7 @@ static int twi_arduino_open(struct multiboot *mboot)
 		printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->auto_address);
 		printf("version        : %-16s (sig: 0x%02x 0x%02x 0x%02x => %s)\n", version, chipinfo[0], chipinfo[1], chipinfo[2], chipname);
 		printf("flash size     : 0x%04x / %5d   (0x%02x bytes/page)\n", twi->flashsize, twi->flashsize, twi->pagesize);
-		printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);
+		//printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);
 	}
 
     return 0;

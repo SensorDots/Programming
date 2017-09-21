@@ -42,11 +42,13 @@
 
 #define TWI_DEFAULT_DEVICE  "/dev/i2c-0"
 
-#define READ_BLOCK_SIZE		128	/* bytes in one flash/eeprom read request */
+#define READ_BLOCK_SIZE		 64	/* bytes in one flash/eeprom read request */
 #define WRITE_BLOCK_SIZE	 16	/* bytes in one eeprom write request */
 
+#define I2C_BOOTLOADER_ADDR 0x07
+
 /* SLA+R */
-#define CMD_WAIT		0x00
+#define CMD_WAIT		    0x00
 #define CMD_READ_VERSION	0x01
 #define CMD_READ_MEMORY		0x02
 
@@ -69,8 +71,10 @@ struct multiboot_ops twi_ops;
 struct twi_privdata {
     char        *device;
     uint8_t     address;
+	uint8_t     auto_address;
     int         fd;
     int         connected;
+	int         reboot;
 
     uint8_t     pagesize;
     uint16_t    flashsize;
@@ -80,11 +84,20 @@ struct twi_privdata {
 static struct option twi_optargs[] = {
     {"address",     1, 0, 'a'}, /* -a <addr>       */
     {"device",      1, 0, 'd'}, /* [ -d <device> ] */
+	{"reboot",      0, 0, 's'}, /* [ -s ] */
 };
 
 static int twi_switch_application(struct twi_privdata *twi, uint8_t application)
 {
     uint8_t cmd[] = { CMD_SWITCH_APPLICATION, application };
+
+    return (write(twi->fd, cmd, sizeof(cmd)) != sizeof(cmd));
+}
+
+static int twi_wait(struct twi_privdata *twi)
+{
+ 
+    uint8_t cmd[] = { CMD_WAIT };
 
     return (write(twi->fd, cmd, sizeof(cmd)) != sizeof(cmd));
 }
@@ -226,33 +239,46 @@ static int twi_open(struct multiboot *mboot)
         return -1;
     }
 
+	/* Change to new bootloader address */
+	twi->address = I2C_BOOTLOADER_ADDR;
+	
     /* wait for watchdog and startup time */
     usleep(100000);
+	
+	/* reboot device */
+	if (twi->connected && twi->reboot) {
+		printf("rebooting device: 0x%02X\n", twi->auto_address);
+        twi_switch_application(twi, BOOTTYPE_APPLICATION);
+	} else {
+	
+		/* Stop bootloader from going into application mode */
+		twi_wait(twi);
+		
+		char version[16];
+		if (twi_read_version(twi, version, sizeof(version))) {
+			fprintf(stderr, "failed to get bootloader version: %s\n", strerror(errno));
+			twi_close(mboot);
+			return -1;
+		}
 
-    char version[16];
-    if (twi_read_version(twi, version, sizeof(version))) {
-        fprintf(stderr, "failed to get bootloader version: %s\n", strerror(errno));
-        twi_close(mboot);
-        return -1;
-    }
+		uint8_t chipinfo[8];
+		if (twi_read_memory(twi, chipinfo, sizeof(chipinfo), MEMTYPE_CHIPINFO, 0x0000)) {
+			fprintf(stderr, "failed to get chipinfo: %s\n", strerror(errno));
+			twi_close(mboot);
+			return -1;
+		}
 
-    uint8_t chipinfo[8];
-    if (twi_read_memory(twi, chipinfo, sizeof(chipinfo), MEMTYPE_CHIPINFO, 0x0000)) {
-        fprintf(stderr, "failed to get chipinfo: %s\n", strerror(errno));
-        twi_close(mboot);
-        return -1;
-    }
+		const char *chipname = chipinfo_get_avr_name(chipinfo);
 
-    const char *chipname = chipinfo_get_avr_name(chipinfo);
+		twi->pagesize   = chipinfo[3];
+		twi->flashsize  = (chipinfo[4] << 8) + chipinfo[5];
+		twi->eepromsize = (chipinfo[6] << 8) + chipinfo[7];
 
-    twi->pagesize   = chipinfo[3];
-    twi->flashsize  = (chipinfo[4] << 8) + chipinfo[5];
-    twi->eepromsize = (chipinfo[6] << 8) + chipinfo[7];
-
-    printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->address);
-    printf("version        : %-16s (sig: 0x%02x 0x%02x 0x%02x => %s)\n", version, chipinfo[0], chipinfo[1], chipinfo[2], chipname);
-    printf("flash size     : 0x%04x / %5d   (0x%02x bytes/page)\n", twi->flashsize, twi->flashsize, twi->pagesize);
-    printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);
+		printf("device         : %-16s (address: 0x%02X)\n", twi->device, twi->address);
+		printf("version        : %-16s (sig: 0x%02x 0x%02x 0x%02x => %s)\n", version, chipinfo[0], chipinfo[1], chipinfo[2], chipname);
+		printf("flash size     : 0x%04x / %5d   (0x%02x bytes/page)\n", twi->flashsize, twi->flashsize, twi->pagesize);
+		//printf("eeprom size    : 0x%04x / %5d\n", twi->eepromsize, twi->eepromsize);
+	}
 
     return 0;
 }
@@ -367,6 +393,12 @@ static int twi_optarg_cb(int val, const char *arg, void *privdata)
             }
         }
         break;
+	
+	case 's': /* reboot after verify */
+		{
+			twi->reboot = 1;
+		}
+		break;
 
     case 'h':
     case '?': /* error */
@@ -375,6 +407,7 @@ static int twi_optarg_cb(int val, const char *arg, void *privdata)
                 "  -d <device>                  - selects i2c device  (default: /dev/i2c-0)\n"
                 "  -r <flash|eeprom>:<file>     - reads flash/eeprom to file   (.bin | .hex | -)\n"
                 "  -w <flash|eeprom>:<file>     - write flash/eeprom from file (.bin | .hex)\n"
+				"  -s                           - reboot into application mode\n"
                 "  -n                           - disable verify after write\n"
                 "  -p <0|1|2>                   - progress bar mode\n"
                 "\n"
@@ -407,6 +440,7 @@ static struct multiboot * twi_alloc(void)
     memset(twi, 0x00, sizeof(struct twi_privdata));
     twi->device  = NULL;
     twi->address = 0;
+	twi->reboot = 0;
 
     optarg_register(twi_optargs, ARRAY_SIZE(twi_optargs), twi_optarg_cb, (void *)twi);
 
