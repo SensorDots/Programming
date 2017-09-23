@@ -42,7 +42,7 @@
 
 #define TWI_DEFAULT_DEVICE  "/dev/i2c-0"
 
-#define READ_BLOCK_SIZE		 32	/* bytes in one flash/eeprom read request */
+#define READ_BLOCK_SIZE		 64	/* bytes in one flash/eeprom read request */
 #define WRITE_BLOCK_SIZE	 16	/* bytes in one eeprom write request */
 
 #define I2C_BOOTLOADER_ADDR 0x07
@@ -114,7 +114,7 @@ static int twi_read_version(struct twi_privdata *twi, char *version, int length)
     memset(version, 0, length);
 
 	//Wait for data
-	usleep(READ_DELAY);
+	//usleep(READ_DELAY);
 
     if (read(twi->fd, version, length) != length)
         return -1;
@@ -133,7 +133,7 @@ static int twi_read_memory(struct twi_privdata *twi, uint8_t *buffer, uint8_t si
         return -1;
 
     //Wait for data
-	usleep(READ_DELAY);
+	//usleep(READ_DELAY);
     return (read(twi->fd, buffer, size) != size);
 }
 
@@ -164,13 +164,19 @@ static int twi_write_memory(struct twi_privdata *twi, uint8_t *buffer, uint8_t s
         memset(cmd +4 +size, 0xFF, twi->pagesize - size);
     }
 
-    int result = write(twi->fd, cmd, bufsize);
+    //int result = write(twi->fd, cmd, bufsize);
+	write(twi->fd, cmd, bufsize);
+	
     free(cmd);
 
 	//Wait for write to occur
 	usleep(WRITE_DELAY);
-
-    return (result != bufsize);
+	
+    //return (result != bufsize);
+	/* Raspi will return Input/output error on long buffers (>64) 
+	   but it "generally" still works. We will detect write errors 
+	   during a verify anyway, so we just don't check here. */
+	return 0;  
 }
 
 static void twi_close_device(struct twi_privdata *twi)
