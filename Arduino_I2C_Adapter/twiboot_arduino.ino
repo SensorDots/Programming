@@ -18,7 +18,7 @@
 
 
 
-   For use with the SensorDot Bootloader.
+   For use with the SensorDots Bootloader.
    Performs everything in a state based structure.
    Each transaction has the following format:
    
@@ -32,6 +32,20 @@
    If end byte not received after num bytes, then it's assumed that the transaction failed.
    Adapter will timeout if a complete transaction doesn't arrive on the serial interface
    within a specified timeframe.
+   
+   Please note! The Wire.h library should be changed so that i2c runs at 400kHz.
+   This will differ depending on the board you use. On Arduino boards it's defined
+   as:
+   
+   #ifndef TWI_FREQ
+   #define TWI_FREQ 100000L
+   #endif
+   
+   Change this to:
+   
+   #ifndef TWI_FREQ
+   #define TWI_FREQ 400000L
+   #endif
 
 */
 
