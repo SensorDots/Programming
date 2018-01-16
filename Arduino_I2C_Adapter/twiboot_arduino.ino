@@ -1,5 +1,5 @@
 /**
-   SIASFU - Simple I2C Adapter for SensorDot Firmware Update.
+   SIASFU - Simple I2C Adapter for SensorDots Firmware Update.
 
    Copyright (C) 2017  Blair Wyatt
 
