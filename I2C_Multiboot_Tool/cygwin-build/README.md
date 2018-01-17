@@ -1,6 +1,6 @@
 Cygwin build of Multiboot Tool for Windows
 
-For use with the Arduino I2C tool if programming MappyDots under Windows. Does not work with I2C devices on Windows. - https://github.com/MappyDot/Programming/tree/master/Arduino_I2C_Adapter
+For use with the Arduino I2C tool if programming MappyDots under Windows. - https://github.com/MappyDot/Programming/tree/master/Arduino_I2C_Adapter
 
 If you get the error "error 22 from tcgetattr", open the device in a terminal application like Putty first, then run again.
 
