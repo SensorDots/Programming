@@ -89,7 +89,7 @@ const int ledPin = 13;
 void setup() {
 
   //Wire.begin(); //Uncomment if using Arduino boards.
-  //Wire.setClock(400000) //Uncomment if using Arduino boards.
+  //Wire.setClock(400000); //Uncomment if using Arduino boards.
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400); //Uncomment if using Teensy boards.
   Serial.begin(115200);
 
