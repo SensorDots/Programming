@@ -161,9 +161,9 @@ void handleData(uint8_t data) {
 
 void handleWireTrans() {
   //Flush wire
-  while (Wire.available()) {
-    Wire.read();
-  }
+  //while (Wire.available()) {
+  //  Wire.read();
+  //}
 
   //if (num_bytes > 0) {
   Wire.beginTransmission(address);
@@ -172,7 +172,7 @@ void handleWireTrans() {
   }
   Wire.endTransmission();
   //}
-  delay(2);
+  delay(1);
   //Repeated Start for Read Register
   if (i2c_command == I2C_READ) {
     Wire.requestFrom(address, return_num_bytes);
