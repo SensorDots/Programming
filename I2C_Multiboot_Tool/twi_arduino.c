@@ -48,8 +48,9 @@
 
 #define twi_arduino_DEFAULT_DEVICE  "/dev/ttyUSB0"
 
-#define READ_BLOCK_SIZE		 32 //128	/* bytes in one flash/eeprom read request (Arduino has a 32byte read buffer) */
-#define WRITE_BLOCK_SIZE	 16	/* bytes in one flash/eeprom write request */
+uint8_t READ_BLOCK_SIZE = 16; //128	/* bytes in one flash/eeprom read request (Arduino has a 32byte read buffer) */
+
+uint8_t WRITE_BLOCK_SIZE = 16;	/* bytes in one flash/eeprom write request */
 
 #define I2C_BOOTLOADER_ADDR 0x07
 
@@ -156,6 +157,7 @@ struct twi_arduino_privdata {
     int         fd;
     int         connected;
 	int         reboot;
+	int         teensy;
 
     uint8_t     pagesize;
     uint16_t    flashsize;
@@ -166,6 +168,7 @@ static struct option twi_arduino_optargs[] = {
     {"address",     1, 0, 'a'}, /* -a <addr>       */
     {"device",      1, 0, 'd'}, /* [ -d <device> ] */
     {"reboot",      0, 0, 's'}, /* [ -s ] */
+	{"teensy",      0, 0, 't'}, /* [ -t ] */
 };
 
 static int twi_arduino_switch_application(struct twi_arduino_privdata *twi, uint8_t application)
@@ -303,6 +306,7 @@ static int twi_arduino_open_device(struct twi_arduino_privdata *twi)
 	
 
     twi->connected = 1;
+	
     return 0;
 }
 
@@ -338,16 +342,24 @@ static int twi_arduino_open(struct multiboot *mboot)
         return -1;
 	
     if (twi_arduino_switch_application(twi, BOOTTYPE_BOOTLOADER)) {
-        fprintf(stderr, "failed to switch to bootloader (invalid address?): %s\n", strerror(errno));
-        twi_arduino_close(mboot);
-        return -1;
-    }
+        //fprintf(stderr, "failed to switch to bootloader (invalid address?): %s\n", strerror(errno));
+		fprintf(stderr, "warning: did not switch to bootloader\n");
+		twi_arduino_close_device(twi);
+		if (twi_arduino_open_device(twi) != 0)
+			return -1;
+        //twi_arduino_close(mboot);
+        //return -1;
+		
+		//No wait
+    } else {
+		/* wait for watchdog and startup time */
+		usleep(100000);
+	}
 	
 	/* Change to new bootloader address */
 	twi->address = I2C_BOOTLOADER_ADDR;
 
-    /* wait for watchdog and startup time */
-    usleep(100000);
+    
 	
 	/* reboot device */
 	if (twi->connected && twi->reboot) {
@@ -510,6 +522,13 @@ static int twi_arduino_optarg_cb(int val, const char *arg, void *privdata)
             }
         }
         break;
+	case 't': /* teensy flag */
+		{
+			twi->teensy = 1;
+			READ_BLOCK_SIZE = 64;
+			WRITE_BLOCK_SIZE = 64;
+		}
+		break;
 		
 	case 's': /* reboot after verify */
 		{
@@ -527,6 +546,10 @@ static int twi_arduino_optarg_cb(int val, const char *arg, void *privdata)
 				"  -s                           - reboot into application mode\n"
                 "  -n                           - disable verify after write\n"
                 "  -p <0|1|2>                   - progress bar mode\n"
+				"  -t                           - large buffer flag, if device is capable of large i2c buffers\n"
+				"                                 such as the teensy (64 bytes), set for faster operation\n"
+				"                                 note that Arduino devices will fail verfication if using\n"
+				"                                 this flag as they don't support larger i2c buffers\n"
                 "\n"
                 "Example: twiboot -a 0x22 -w flash:blmc.hex -w flash:blmc_eeprom.hex\n"
                 "\n");
