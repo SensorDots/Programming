@@ -48,8 +48,8 @@
 
 #define twi_arduino_DEFAULT_DEVICE  "/dev/ttyUSB0"
 
-#define READ_BLOCK_SIZE		 64 //128	/* bytes in one flash/eeprom read request */
-#define WRITE_BLOCK_SIZE	 16	/* bytes in one eeprom write request */
+#define READ_BLOCK_SIZE		 32 //128	/* bytes in one flash/eeprom read request (Arduino has a 32byte read buffer) */
+#define WRITE_BLOCK_SIZE	 16	/* bytes in one flash/eeprom write request */
 
 #define I2C_BOOTLOADER_ADDR 0x07
 
@@ -103,6 +103,8 @@ int set_interface_attribs (int fd, int speed, int parity)
 	tty.c_oflag = 0;                // no remapping, no delays
 	tty.c_cc[VMIN]  = 0;            // read doesn't block
 	tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
+	
+	tty.c_cflag &= ~HUPCL;   // disable hang-up-on-close to avoid reset on Arduino
 
 	tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
 

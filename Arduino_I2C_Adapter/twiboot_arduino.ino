@@ -21,10 +21,10 @@
    For use with the SensorDots Bootloader.
    Performs everything in a state based structure.
    Each transaction has the following format:
-   
+
    | 1byte | 1byte |  1byte  |  1byte  |num_bytes| 0xFF  |
    |ADDRESS|COMMAND|RET_BYTES|NUM_BYTES|  BYTES  |  END  |
-   
+
    RET_BYTES is number of bytes expected to return if performing a read command,
    leave as 0 if doing a write command.
    Every incoming byte triggers a state change.
@@ -32,25 +32,28 @@
    If end byte not received after num bytes, then it's assumed that the transaction failed.
    Adapter will timeout if a complete transaction doesn't arrive on the serial interface
    within a specified timeframe.
-   
+
    Please note! The Wire.h library should be changed so that i2c runs at 400kHz.
    This will differ depending on the board you use. On Arduino boards it's defined
    as:
-   
+
    #ifndef TWI_FREQ
    #define TWI_FREQ 100000L
    #endif
-   
+
    Change this to:
-   
+
    #ifndef TWI_FREQ
    #define TWI_FREQ 400000L
    #endif
 
 */
 
-//#include <Wire.h> //Uncomment if using Arduino boards.
-#include <i2c_t3.h> //Teensy 3 I2C library. Uncomment if using Teensy boards.
+#ifndef TEENSYDUINO
+#include <Wire.h>
+#else
+#include <i2c_t3.h> //Teensy 3 I2C library.
+#endif
 
 #define I2C_WRITE       0x00
 #define I2C_READ        0x01
@@ -88,27 +91,32 @@ const int ledPin = 13;
 
 void setup() {
 
-  //Wire.begin(); //Uncomment if using Arduino boards.
-  //Wire.setClock(400000); //Uncomment if using Arduino boards.
-  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400); //Uncomment if using Teensy boards.
   Serial.begin(115200);
 
-  //Stop bus locking up when I2C glitches occur. Uncomment if using Teensy boards.
+#ifndef TEENSYDUINO
+#warning Regular Arduino being used!
+  Wire.begin();
+  Wire.setClock(100000);
+#else
+#warning Teensy being used!
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+  //Stop bus locking up when I2C glitches occur.
   Wire.setDefaultTimeout(200000);
+#endif
 
   // initialize the LED pin as an output.
   pinMode(ledPin, OUTPUT);
 }
 
 void loop() {
-  while (!Serial) {
-    // Wait for serial port
-  }
+  //while (!Serial) {
+  // Wait for serial port
+  //}
 
   if (Serial.available()) {
+    digitalWrite(ledPin, HIGH);   // set the LED on
     // Read character from serial port
     incoming_data = Serial.read();
-    digitalWrite(ledPin, HIGH);   // set the LED on
     timeout = TIMEOUT;
     handleData(incoming_data);
   } else {
@@ -127,6 +135,7 @@ void loop() {
 
 void handleData(uint8_t data) {
   if (state == ADDRESS_STATE) {
+
     address = data;
     num_bytes = 0;
     state = COMMAND_STATE;
@@ -143,7 +152,9 @@ void handleData(uint8_t data) {
     num_bytes = data;
     state = BYTES_STATE;
     bytes_count = 0;
-    if (num_bytes == 0) state = END_STATE;
+    if (num_bytes == 0) {
+      state = END_STATE;
+    }
   }
   else if (state == BYTES_STATE && bytes_count < num_bytes) {
     data_buffer[bytes_count] = data;
@@ -165,13 +176,13 @@ void handleWireTrans() {
   //  Wire.read();
   //}
 
-  //if (num_bytes > 0) {
-  Wire.beginTransmission(address);
-  for (int i = 0; i < num_bytes; i++) {
-    Wire.write(data_buffer[i]);
+  if (num_bytes > 0) {
+    Wire.beginTransmission(address);
+    for (int i = 0; i < num_bytes; i++) {
+      Wire.write(data_buffer[i]);
+    }
+    Wire.endTransmission();
   }
-  Wire.endTransmission();
-  //}
   delay(1);
   //Repeated Start for Read Register
   if (i2c_command == I2C_READ) {
@@ -184,4 +195,5 @@ void handleWireTrans() {
     }
   }
 }
+
 
