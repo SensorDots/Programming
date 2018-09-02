@@ -183,7 +183,6 @@ void handleWireTrans() {
     {
       char c = Wire.read();    // receive a byte as character
       Serial.print(c);         // print the character
-      Serial.flush();
     }
   }
 }
