@@ -257,7 +257,7 @@ static int twi_arduino_write_memory(struct twi_arduino_privdata *twi, uint8_t *b
     
     uint8_t *cmd = malloc(bufsize);
     if (cmd == NULL) return -1;
-	
+		
 	cmd[0] = twi->address;
 	cmd[1] = I2C_WRITE;
 	cmd[2] = 0;
@@ -283,6 +283,8 @@ static int twi_arduino_write_memory(struct twi_arduino_privdata *twi, uint8_t *b
 	
 	//Wait for write to occur
 	usleep(WRITE_DELAY);
+
+	//sync();
 
     return (result != bufsize);
 }
@@ -367,7 +369,7 @@ static int twi_arduino_open(struct multiboot *mboot)
 		/* Stop bootloader from going into application mode */
 		twi_arduino_wait(twi);
 		
-		usleep(200000);
+		usleep(100000);
 		
 		char version[16];
 		if (twi_arduino_read_version(twi, version, sizeof(version))) {

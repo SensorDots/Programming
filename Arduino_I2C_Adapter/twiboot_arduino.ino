@@ -68,13 +68,16 @@ uint8_t return_num_bytes = 0;
 uint8_t address = 0;
 int8_t i2c_command = -1;
 
-#define TIMEOUT 100000
+#define TIMEOUT 300000
 
 uint32_t timeout = TIMEOUT;
 
 uint8_t state = ADDRESS_STATE;
 
 #ifdef ARDUINO_ARCH_NRF52
+#if(SERIAL_BUFFER_SIZE < 256)
+#error "Need to set SERIAL_BUFFER_SIZE 256 in RingBuffer.h"
+#endif
 const int ledPin = 17;
 #else
 const int ledPin = 13;
@@ -87,7 +90,7 @@ void setup() {
 #ifdef ARDUINO_ARCH_NRF52
 #warning nRF52 Feather being used!
   Wire.begin();
-  Wire.setClock(400000);
+  Wire.setClock(100000);
 #elif TEENSYDUINO
 #warning Teensy being used!
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
@@ -110,10 +113,13 @@ void loop() {
 
   if (Serial.available()) {
     digitalWrite(ledPin, HIGH);   // set the LED on
-    // Read character from serial port
-    incoming_data = Serial.read();
+    while (Serial.available()) {
+      // Read character from serial port
+      incoming_data = Serial.read();
+      handleData(incoming_data);
+    }
     timeout = TIMEOUT;
-    handleData(incoming_data);
+    
   } else {
     timeout--;
   }

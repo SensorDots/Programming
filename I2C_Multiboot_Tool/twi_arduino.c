@@ -367,7 +367,7 @@ static int twi_arduino_open(struct multiboot *mboot)
 		/* Stop bootloader from going into application mode */
 		twi_arduino_wait(twi);
 		
-		usleep(200000);
+		usleep(100000);
 		
 		char version[16];
 		if (twi_arduino_read_version(twi, version, sizeof(version))) {
