@@ -201,7 +201,7 @@ static int twi_arduino_read_version(struct twi_arduino_privdata *twi, char *vers
         return -1;
 	
     //Flush Serial
-    tcflush(twi->fd,TCIOFLUSH);
+    //tcflush(twi->fd,TCIOFLUSH);
 
     memset(version, 0, length);
 	
@@ -231,7 +231,7 @@ static int twi_arduino_read_memory(struct twi_arduino_privdata *twi, uint8_t *bu
         return -1;
 	
 	//Flush Serial
-    tcflush(twi->fd,TCIOFLUSH);
+    //tcflush(twi->fd,TCIOFLUSH);
 	
     //Wait for data
 	usleep(READ_DELAY);
@@ -279,7 +279,7 @@ static int twi_arduino_write_memory(struct twi_arduino_privdata *twi, uint8_t *b
     free(cmd);
 	
 	//Flush Serial
-    tcflush(twi->fd,TCIOFLUSH);
+    //tcflush(twi->fd,TCIOFLUSH);
 	
 	//Wait for write to occur
 	usleep(WRITE_DELAY);
@@ -348,12 +348,7 @@ static int twi_arduino_open(struct multiboot *mboot)
         //fprintf(stderr, "failed to switch to bootloader (invalid address?): %s\n", strerror(errno));
 		fprintf(stderr, "warning: did not switch to bootloader\n");
 		twi_arduino_close_device(twi);
-		if (twi_arduino_open_device(twi) != 0)
-			return -1;
-        //twi_arduino_close(mboot);
-        //return -1;
-		
-		//No wait
+		return -1;
     } else {
 		/* wait for watchdog and startup time */
 		usleep(100000);
@@ -361,7 +356,6 @@ static int twi_arduino_open(struct multiboot *mboot)
 	
 	/* Change to new bootloader address */
 	twi->address = I2C_BOOTLOADER_ADDR;
-
     
 	
 	/* reboot device */
@@ -373,12 +367,17 @@ static int twi_arduino_open(struct multiboot *mboot)
 		/* Stop bootloader from going into application mode */
 		twi_arduino_wait(twi);
 		
+		usleep(200000);
 		
 		char version[16];
 		if (twi_arduino_read_version(twi, version, sizeof(version))) {
-			fprintf(stderr, "failed to get bootloader version: %s\n", strerror(errno));
-			twi_arduino_close(mboot);
-			return -1;
+			/* retry */
+			usleep(200000);
+			if (twi_arduino_read_version(twi, version, sizeof(version))) {		
+				fprintf(stderr, "failed to get bootloader version: %s\n", strerror(errno));
+				twi_arduino_close(mboot);
+				return -1;
+			}
 		}
 
 		uint8_t chipinfo[8];
@@ -554,8 +553,8 @@ static int twi_arduino_optarg_cb(int val, const char *arg, void *privdata)
 				"  -s                           - reboot into application mode\n"
                 "  -n                           - disable verify after write\n"
                 "  -p <0|1|2>                   - progress bar mode\n"
-				"  -z                           - enables 3 second delay upon opening device due to some\n"
-				"                                 Arduino boards resetting when the port is opened."
+				"  -z                           - enables 3 second delay upon opening device, due to some\n"
+				"                                 Arduino boards resetting when the port is opened.\n"
 				"  -t                           - large buffer flag, if device is capable of large i2c buffers\n"
 				"                                 such as the teensy (64 bytes), set for faster operation\n"
 				"                                 note that Arduino devices will fail verfication if using\n"

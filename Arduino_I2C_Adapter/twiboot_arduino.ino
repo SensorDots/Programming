@@ -33,26 +33,12 @@
    Adapter will timeout if a complete transaction doesn't arrive on the serial interface
    within a specified timeframe.
 
-   Please note! The Wire.h library should be changed so that i2c runs at 400kHz.
-   This will differ depending on the board you use. On Arduino boards it's defined
-   as:
-
-   #ifndef TWI_FREQ
-   #define TWI_FREQ 100000L
-   #endif
-
-   Change this to:
-
-   #ifndef TWI_FREQ
-   #define TWI_FREQ 400000L
-   #endif
-
 */
 
-#ifndef TEENSYDUINO
-#include <Wire.h>
-#else
+#ifdef TEENSYDUINO
 #include <i2c_t3.h> //Teensy 3 I2C library.
+#else
+#include <Wire.h>
 #endif
 
 #define I2C_WRITE       0x00
@@ -83,25 +69,34 @@ uint8_t address = 0;
 int8_t i2c_command = -1;
 
 #define TIMEOUT 100000
+
 uint32_t timeout = TIMEOUT;
 
 uint8_t state = ADDRESS_STATE;
 
+#ifdef ARDUINO_ARCH_NRF52
+const int ledPin = 17;
+#else
 const int ledPin = 13;
+#endif
 
 void setup() {
 
   Serial.begin(115200);
 
-#ifndef TEENSYDUINO
-#warning Regular Arduino being used!
+#ifdef ARDUINO_ARCH_NRF52
+#warning nRF52 Feather being used!
   Wire.begin();
-  Wire.setClock(100000);
-#else
+  Wire.setClock(400000);
+#elif TEENSYDUINO
 #warning Teensy being used!
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   //Stop bus locking up when I2C glitches occur.
   Wire.setDefaultTimeout(200000);
+#else
+#warning Regular Arduino libraries being used!
+  Wire.begin();
+  Wire.setClock(100000);
 #endif
 
   // initialize the LED pin as an output.
@@ -127,9 +122,10 @@ void loop() {
 
   if (timeout == 0)
   {
+    Serial.flush();
     digitalWrite(ledPin, LOW);    // set the LED off
     state = ADDRESS_STATE;
-    timeout = TIMEOUT;
+    timeout = TIMEOUT; 
   }
 }
 
@@ -171,11 +167,6 @@ void handleData(uint8_t data) {
 }
 
 void handleWireTrans() {
-  //Flush wire
-  //while (Wire.available()) {
-  //  Wire.read();
-  //}
-
   if (num_bytes > 0) {
     Wire.beginTransmission(address);
     for (int i = 0; i < num_bytes; i++) {
@@ -183,17 +174,16 @@ void handleWireTrans() {
     }
     Wire.endTransmission();
   }
+  
   delay(1);
-  //Repeated Start for Read Register
+  
   if (i2c_command == I2C_READ) {
     Wire.requestFrom(address, return_num_bytes);
     while (Wire.available())   // slave may send less than requested
     {
       char c = Wire.read();    // receive a byte as character
       Serial.print(c);         // print the character
-      //Serial.flush();
+      Serial.flush();
     }
   }
 }
-
-
